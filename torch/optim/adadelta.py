@@ -4,6 +4,7 @@ from torch import Tensor
 from .optimizer import Optimizer, _use_grad_for_differentiable
 from torch.utils._foreach_utils import _group_tensors_by_device_and_dtype
 from typing import List, Optional
+from itertools import chain
 
 __all__ = ["Adadelta", "adadelta"]
 
@@ -197,12 +198,9 @@ def adadelta(
     # implementation is not differentiable, so we must check differentiable=False.
     # We still respect when the user inputs False for foreach.
     if foreach is None:
-        if not differentiable and all(
-            p.is_cuda for p in params + grads + square_avgs + acc_deltas
-        ):
-            foreach = True
-        else:
-            foreach = False
+        foreach = not torch.jit.is_scripting() and not differentiable and all(
+            p.is_cuda for p in chain(params, grads, square_avgs, acc_deltas)
+        )
 
     if foreach and torch.jit.is_scripting():
         raise RuntimeError("torch.jit.script not supported with foreach optimizers")
